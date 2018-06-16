@@ -17,7 +17,7 @@ def format_time(seconds):
     return '%02d:%02d' % (mins, secs)
 
 def initialize_plot():
-    fig = plt.figure(figsize=(12.8, 7.2), dpi=100)
+    fig = plt.figure(figsize=(19.2, 10.8), dpi=100)
     # fig = plt.figure(figsize=(5, 5), dpi=50)
 
     fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=None, hspace=None)
@@ -52,8 +52,7 @@ def build_movie(fig):
     writer = FFMpegWriter(fps=FPS, metadata=metadata)
     frame_count =  FPS * len(DIVE_PROFILE)
 
-    # plt.savefig('myfig_1.png', facecolor='xkcd:sky blue', bbox_inches='tight', pad_inches=0)
-    with writer.saving(fig, "/Users/paoloadaoag/Desktop/dive2/haze_clean.mp4", 100):
+    with writer.saving(fig, "/Users/paoloadaoag/Desktop/dive2/haze_clean2.mp4", 100):
         for i in range(frame_count):
             update_plot(fig, plt, i)
             writer.grab_frame(savefig_kwargs={'facecolor':'xkcd:sky blue', 'bbox_inches':'tight', 'pad_inches':0})
@@ -68,11 +67,7 @@ def import_dive_profile(filename, header):
     return dive_profile
 
 if __name__ == "__main__":
-    # filename = 'dive.csv'
     filename = '/Users/paoloadaoag/Desktop/dive2/haze_clean.csv'
     DIVE_PROFILE = import_dive_profile(filename, 'sample depth (m)')
-    # DIVE_PROFILE = [0,0] + DIVE_PROFILE
-    # print DIVE_PROFILE
-    # DIVE_PROFILE = [1,2,3]
     fig = initialize_plot()
     build_movie(fig)
