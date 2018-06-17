@@ -11,6 +11,7 @@ Options:
     --output=<arg>              Destination file
     --timezone=<arg>            Timezone in diff from GMT
     --sec-offset=<arg>          Time in seconds that video is ahead of dive computer. Defaults to zero
+    --diver-name=<arg>          Name of the diver
 """
 
 from docopt import docopt
@@ -50,7 +51,7 @@ def parse_xml(xml_path, dive_date):
 
   notes = dive.find('notes')
   dive_end = datetime.strptime(notes.text, "%H:%M:%S")
-  dive_end.replace(year=dive_date.year, month=dive_date.month, day=dive_date.day)
+  dive_end = dive_end.replace(year=dive_date.year, month=dive_date.month, day=dive_date.day)
   dive_start = dive_end - timedelta(seconds=len(dive_profile))
   return {'dive_profile': dive_profile,
           'dive_start': dive_start}
@@ -66,6 +67,7 @@ if __name__ == '__main__':
   output = arguments['--output']
   sec_offset = arguments['--sec-offset']
   timezone = arguments['--timezone']
+  diver_name = arguments['--diver-name']
 
   if not (xml_path and video_source and output and timezone):
     print(__doc__)
@@ -79,31 +81,44 @@ if __name__ == '__main__':
     sec_offset = int(sec_offset)
 
   statbuf = os.stat(video_source)
-  print statbuf.st_mtime
   video_mod_time = datetime.utcfromtimestamp(statbuf.st_mtime)
   dive_date = video_mod_time.date()
 
-  dive_data = parse_xml(xml_path, dive_date)
-  print video_mod_time
 
   fontfile = '/Users/paoloadaoag/Documents/Personal/DiveVideoAnnotate/Play-Bold.ttf'
   probe = ffmpeg.probe(video_source)
-  print(probe)
-
-  dive_profile = dive_data['dive_profile']
-  annotator = Annotator(dive_profile, diver_name='Hazel Gallos')
 
   video_start = dateutil.parser.parse(probe['streams'][0]['tags']['creation_time'])
-  print "Dive_Start:%s"%(dive_data['dive_start'])
+
+  dive_data = parse_xml(xml_path, video_start)
+  dive_start = dive_data['dive_start']
+  dive_start = dive_start.replace(tzinfo=None)
+  video_start = video_start.replace(tzinfo=None)
+  dive_start_adjusted = dive_start + timedelta(seconds=sec_offset)
+
+  # dive_start = dive_start.replace(year=video_start.year, month=video_start.month, day=video_start.day)
+  print "Dive_Start:%s"%(dive_start)
+  print "Dive_Start Adsjusted:%s"%(dive_start_adjusted)
+
   print "Video Duration:%s"%(probe['streams'][0]['duration'])
   print "Video_Start:%s"%(video_start)
 
+  difference = video_start - dive_start_adjusted
+
+
+  start_offset = -1 * (difference.total_seconds())
+
+  print "Start Offset: %s " %(start_offset)
+  dive_profile = dive_data['dive_profile']
+
+  annotator = Annotator(dive_profile, diver_name=diver_name)
+
   generate_plot_overlay(dive_profile)
 
-  stream = ffmpeg.input(video_source)
+  stream = ffmpeg.input(video_source, acodec='aac')
+  audio = stream["a"].filter_("aecho", 0.8, 0.9, 1000, 0.3)
   stream2 = ffmpeg.input('lines.mov')
 
-  start_offset = 3
   stream2 = ffmpeg.setpts(stream2, 'PTS+%s/TB'%(start_offset-1))
   for i in xrange(0, len(dive_profile)):
     string = annotator.next()
@@ -119,8 +134,7 @@ if __name__ == '__main__':
       shadowcolor='Black',shadowx=3, shadowy=3,
       start_number=100,
       enable=enable_str, fontcolor='WhiteSmoke')
-  stream = ffmpeg.overlay(stream, stream2, x=50, y=500, enable='gte(t,%s)'%(start_offset))
-  stream = ffmpeg.output(stream, output)
-
+  stream = ffmpeg.overlay(stream, stream2, x=50, y=500, enable='gte(t,%s)'%(start_offset-1))
+  stream = ffmpeg.output(stream, audio, output)
   stream = ffmpeg.overwrite_output(stream)
-  ffmpeg.run(stream, quiet=True)
+  ffmpeg.run(stream)
